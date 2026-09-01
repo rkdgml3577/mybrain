@@ -1,0 +1,198 @@
+# MSA 베이스 템플릿 - 로컬 소스 빌드 실행 환경
+#
+# 핵심 스택만 실행:
+#   docker compose up -d --build
+#
+# Auth Server + API Gateway(사전 빌드 이미지)까지 포함:
+#   docker load -i infra-images.tar
+#   docker compose --profile infra up -d --build
+#
+# 새 서비스를 추가하려면:
+#   1) ./new-service.sh <name> <package> <port>
+#   2) 아래 sample-service 블록을 복사해 새 서비스 블록을 추가
+#
+# 개발 기본값은 각 서비스 SecurityConfig 가 permitAll 이라 Gateway/Auth 없이도 동작한다.
+
+name: msa-base
+
+services:
+
+  # ---------- 인프라 ----------
+
+  mariadb:
+    image: mariadb:11.2
+    container_name: msa-db
+    environment:
+      MYSQL_ROOT_PASSWORD: SqlDba-1
+      MYSQL_DATABASE: msa_db
+      MYSQL_USER: manager
+      MYSQL_PASSWORD: SqlDba-1
+    ports:
+      - "3306:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - ./init-db:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - msa-net
+
+  kafka:
+    image: confluentinc/cp-kafka:7.7.0
+    container_name: msa-kafka
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+    ports:
+      - "9092:9092"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - msa-net
+
+  # ---------- 서비스 디스커버리 ----------
+
+  eureka-server:
+    build:
+      context: ./eureka-server
+    container_name: msa-eureka
+    ports:
+      - "8761:8761"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8761/actuator/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    networks:
+      - msa-net
+
+  # ---------- 예시 서비스 (service-template 을 그대로 실행) ----------
+  # 새 서비스는 이 블록을 복사해서 build.context, container_name, SERVER_PORT,
+  # SPRING_APPLICATION_NAME, ports 만 바꾸면 된다.
+
+  sample-service:
+    build:
+      context: ./service-template
+    container_name: msa-sample
+    ports:
+      - "8081:8081"
+    environment:
+      - SERVER_PORT=8081
+      - SPRING_APPLICATION_NAME=sample-service
+      - SPRING_DATASOURCE_URL=jdbc:mariadb://msa-db:3306/msa_db
+      - SPRING_DATASOURCE_USERNAME=manager
+      - SPRING_DATASOURCE_PASSWORD=SqlDba-1
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - msa-net
+
+  # ---------- 예시 Python 서비스 (python-service-template) ----------
+
+  python-sample-service:
+    build:
+      context: ./python-service-template
+    container_name: msa-python-sample
+    ports:
+      - "8085:8085"
+    environment:
+      - APP_NAME=python-sample-service
+      - EUREKA_SERVER_URL=http://eureka-server:8761/eureka
+      - EUREKA_INSTANCE_HOST=python-sample-service
+      - TARGET_SERVICE_URL=http://sample-service:8081
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - KAFKA_TOPIC_INBOUND=sample.created
+      - KAFKA_TOPIC_OUTBOUND=python.processed
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - msa-net
+
+  # ---------- 프런트엔드 ----------
+
+  vue-frontend:
+    build:
+      context: ./vue-frontend
+    container_name: msa-frontend
+    ports:
+      - "3000:80"
+    networks:
+      - msa-net
+
+  # ---------- 선택: Auth Server + API Gateway (사전 빌드 이미지, profile=infra) ----------
+
+  auth-server:
+    image: msa-lecture/auth-server:1.0
+    container_name: msa-auth
+    profiles: ["infra"]
+    ports:
+      - "9000:9000"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=jdbc:mariadb://msa-db:3306/msa_db
+      - SPRING_DATASOURCE_USERNAME=manager
+      - SPRING_DATASOURCE_PASSWORD=SqlDba-1
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - msa-net
+
+  api-gateway:
+    image: msa-lecture/api-gateway:1.0
+    container_name: msa-gateway
+    profiles: ["infra"]
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
+      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI=http://auth-server:9000/oauth2/jwks
+      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=http://localhost:8080
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - msa-net
+
+volumes:
+  mariadb_data:
+  kafka_data:
+
+networks:
+  msa-net:
+    driver: bridge

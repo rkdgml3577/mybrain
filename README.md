@@ -24,6 +24,7 @@ mybrain/
 ├── _templates/       # 정리본 템플릿
 │   ├── section-template.md   # 강의 1개(섹션) 정리용
 │   └── daily-template.md     # 하루 정리(합본)용
+├── skills/           # Claude Code 스킬 모음 (재사용 가능한 작업 자동화)
 └── README.md
 ```
 
@@ -31,6 +32,7 @@ mybrain/
 - **`inbox/`**: 어디에 넣을지 애매하면 일단 여기에. 나중에 대주제로 옮깁니다.
 - **`daily/`**: 하루에 공부한 섹션들을 합쳐 정리한 합본. `daily/<연도>/<YYYY-MM-DD>.md` 형식.
 - **`_templates/`**: 새 정리본을 만들 때 복사해서 쓰는 템플릿.
+- **`skills/`**: Claude Code 스킬 라이브러리. 필요한 컴퓨터·프로젝트에 복사해서 재사용합니다. 자세한 내용은 [`skills/README.md`](./skills/README.md).
 
 ## 분류 규칙
 

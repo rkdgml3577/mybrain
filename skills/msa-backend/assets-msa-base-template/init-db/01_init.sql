@@ -1,0 +1,12 @@
+-- MSA 베이스 템플릿 초기 DDL (선택 사항)
+--
+-- 각 서비스는 JPA `ddl-auto: update` 로 테이블을 자동 생성하므로
+-- 이 파일이 없어도 동작한다. 실제 프로젝트에서 스키마를 명시적으로
+-- 관리하고 싶을 때 여기에 DDL/시드 데이터를 작성한다.
+--
+-- 참고: 데이터베이스(msa_db) 자체는 docker-compose 의
+-- MYSQL_DATABASE 환경변수로 생성된다.
+
+-- 예시 시드 (원하면 주석 해제)
+-- INSERT INTO items (code, name, description, price, sold_count, created_at, updated_at)
+-- VALUES ('SAMPLE-1', '샘플 상품', '데모용 상품', 100.00, 0, NOW(6), NOW(6));
