@@ -24,6 +24,7 @@ Claude Code에서 반복 작업을 자동화하는 **개인 스킬 라이브러�
 | 스킬 | 하는 일 | 언제 발동 |
 |---|---|---|
 | [`msa-backend`](./msa-backend/) | Spring Boot + FastAPI MSA 백엔드 스캐폴딩 (Eureka·Kafka·MariaDB·Gateway, 템플릿 복제 모델) | 새 백엔드/MSA 프로젝트 시작, 서비스 추가, "MSA 뼈대 잡아줘" |
+| [`spring-ai-chatbot`](./spring-ai-chatbot/) | Spring AI 멀티 세션 챗봇 (SSE 스트리밍·ChatMemory·Redis 이력·인증/쿼터·계측·Compose) 단계별 구현·검증 | "챗봇 만들어줘", "Spring AI 스트리밍", "ChatMemory", "대화 이력 Redis" |
 
 ## 설치해서 쓰는 법
 
